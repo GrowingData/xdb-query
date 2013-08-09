@@ -3,9 +3,14 @@
 > "This data is in exactly the right format"
 > -- <cite>No Data Scientist Ever</cite>   
 
-Mung is a platform for preparing data for analysis.  Mung removes the need to be constantly exporting and importing data as CSV files, enabling you to treat any data source as if it were local while still giving you control over where and how data is processed.
+Mung is a platform for accessing and manipulating data across distributed databases.
 
-Mung comes with its own Data Warehouse engine (referred to as `mung`), built on MonetDB, a super fast column oriented database that enables you to query large data sets quickly and efficiently. 
+Mung provides a query engine which rewrites and executes SQL against disparate databases, enabling the output from different queries to be merged and manipulated as if they were local expressions.
+
+Mung removes the need to be constantly exporting and importing data as CSV files, enabling you to treat any data source as if it were local while still giving you control over where and how data is processed.
+
+Mung also enables the partitioning of data so that any database can be split amongst many servers and queried as if it were a single database. 
+
 
 ## Example
 Lets assume that an organization has the following systems:
@@ -35,12 +40,11 @@ The connections.json file tells MUNG how to connect to the various data sources.
 [example.mql]
 
 ```sql
-@input(mung)
+@mung(
 
     SELECT high_value.company_name, high_value.email, high_value.revenue, inactive.LastSeen, open_tickets.tickets
 
-    FROM @(
-        @using(accounting)
+    FROM @accounting(
         SELECT I.client_id, I.revenue, C.email, C.company_name, C.contact_name
         FROM (
             SELECT client_id, SUM(total_amount) as revenue, 
@@ -53,8 +57,7 @@ The connections.json file tells MUNG how to connect to the various data sources.
         ON I.client_id = C.client_id
     ) high_value
 
-    INNER JOIN  @(
-        @input(web_events)  
+    INNER JOIN  @web_events(
         SELECT U.CompanyName, MAX(SessionStart) as LastSeen
         FROM Sessions S
         INNER JOIN Users U
@@ -69,8 +72,7 @@ The connections.json file tells MUNG how to connect to the various data sources.
     ) inactive
     ON high_value.company_name = inactive.CompanyName
 
-    INNER JOIN @(
-        @input(support)
+    INNER JOIN @support(
         SELECT company, COUNT(*) tickets, MIN(open_date) AS first_opened
         FROM tickets T
         WHERE T.status = 'open'
@@ -79,12 +81,11 @@ The connections.json file tells MUNG how to connect to the various data sources.
     ON open_tickets.company = high_value.company_name
 
     ORDER BY high_value.revenue DESC
+)
+
 ```
 
-The `@input(connection_name)` specifies which connection to use to evaluate the query (as referenced in `connections.json`).  
-
-The `@(<sub_query>)` specifies that `sub_query` can be executed in parallel using a different connection.  The results of the query will automatically be streamed to the parent context, and deleted following query execution.
-
+The `@<connection_name>(<query>)` specifies that `<query>` is to be executed on connection `<connection_name>`/.  The results of the query will automatically be streamed to the parent context, and deleted following query execution.
     
 
 ##Why Mung
@@ -100,18 +101,17 @@ Operation data systems contain the data you need, but the queries we want to run
 In high end systems, database mirroring or replication is a good way to get around these issues, but that means extra hardware and more ways to break your production systems.  Often you only need to access a handful of tables, so why not just use:
 
 ```sql
-@input(accounting)
 @output(mung.invoices)
 @cache(MAX_AGE=24H,LAST=2013-10-14T12:34AM)
 
-SELECT *
-FROM invoices
-WHERE invoice_id > @(
-	@using(mung)
-	SELECT MAX(invoice_id)
-    FROM invoices
+@accounting(
+	SELECT *
+	FROM invoices
+	WHERE invoice_id > @mung(
+		SELECT MAX(invoice_id)
+	    FROM invoices
+	)
 )
-
 ```
 
 `@output(<connection>.<table>)` specifies that when this script is run, its output should streamed to the `<table>` using `<connection>`.  As with all MUNG queries, if the table does not exist, it will be created.  If the table does exist, the table will be appended to.
@@ -133,19 +133,18 @@ For use in a management dashboard, where the state and country can be changed dy
 Thus the query might look like:
 
 ```sql
-@input(accounting)
-
-SELECT SUM(amount) 
-FROM invoices i
-INNER JOIN invoice_lines l
-ON i.invoice_id = l.invoice_id
-INNER JOIN products p
-ON p.product_id = l.product_id
-WHERE  i.country = @country_code
-AND    l.state = @state_code
-AND    p.product_name = @product_code
-AND    i.invoice_date > CURRENT_TIMESTAMP - 30 
-
+@accounting(
+	SELECT SUM(amount) 
+	FROM invoices i
+	INNER JOIN invoice_lines l
+	ON i.invoice_id = l.invoice_id
+	INNER JOIN products p
+	ON p.product_id = l.product_id
+	WHERE  i.country = @country_code
+	AND    l.state = @state_code
+	AND    p.product_name = @product_code
+	AND    i.invoice_date > CURRENT_TIMESTAMP - 30 
+)
 ```
 
 The issue is that the invoices table may have millions of rows in it, the invoice_lines table a multiple of that.  This makes the query too slow to be used in a web context.
@@ -154,17 +153,18 @@ The solution is to create a cached representation of the table with the expensiv
 
 [cached_transactions.mql]
 ```sql
-@input(accounting)
 @output(mung.cached_transactions, DROP)
 @update_policy(MAX_AGE=24H,LAST=2013-10-14T12:01AM)
 
-SELECT SUM(amount) as amount
-FROM invoices i
-INNER JOIN invoice_lines l
-ON i.invoice_id = l.invoice_id
-INNER JOIN products p
-ON p.product_id = l.product_id
-GROUP BY i.country, i.state, l.product_name
+@accounting(
+	SELECT SUM(amount) as amount
+	FROM invoices i
+	INNER JOIN invoice_lines l
+	ON i.invoice_id = l.invoice_id
+	INNER JOIN products p
+	ON p.product_id = l.product_id
+	GROUP BY i.country, i.state, l.product_name
+)
 ```
 
 From our management dashboard, we can then execute the following query each time the user requests the value for a `@country_code`, `@state_code` and `@product_code`:
@@ -239,11 +239,6 @@ Queries may also be updated ignoring any `@update_policy` directive using the fo
     mung update parent.mql
 
 
-##License
-
-Mung is licensed under the Mozilla Public License Version 2.
-
-MonetDB5 is licensed under the MonetDB Public License Version 1.1.
 
 
 
