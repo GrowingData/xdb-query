@@ -1,0 +1,10 @@
+packages
+/src/Mung.v12.suo
+/src/Mung.App/Mung.App.csproj.user
+/src/Mung.App/bin
+/src/Mung.App/obj
+/src/Mung.Core/Mung.Core.csproj.user
+/src/Mung.Core/bin
+/src/Mung.Core/obj
+/src/LumenWorks.Framework.IO/bin
+/src/LumenWorks.Framework.IO/obj
