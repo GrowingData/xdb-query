@@ -46,7 +46,8 @@ namespace Mung.App {
 
 			var seperator = '\t';
 			if (parameters.ContainsKey("-s")) {
-				seperator = parameters["-s"][0]; 
+				seperator = parameters["-s"][0];
+				MungLog.LogEvent(LogSeverity.info, "CsvCommand.Execute", "Using field seperator: '" + seperator + "'.");
 			}
 			var cn = AppEngine.Connections[connection];
 			if (cn == null) {

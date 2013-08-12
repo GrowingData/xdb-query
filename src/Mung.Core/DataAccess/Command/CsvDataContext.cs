@@ -13,6 +13,9 @@ namespace Mung.Core {
 		private CsvReader _reader = null;
 		private StreamReader _stream;
 
+		private bool _readTypes = false;
+		private string[] _types;
+
 		private CsvDataContext(string path, char seperator) {
 			_stream = new StreamReader(File.OpenRead(path));
 			_reader = new CsvReader(_stream, true, seperator);
@@ -40,6 +43,19 @@ namespace Mung.Core {
 
 
 		public bool Read() {
+			if (!_readTypes) {
+				if (_reader.FieldCount == 1) {
+					MungLog.LogEvent(LogSeverity.errors, "CsvDataContext", "Warning: The CSV Reader was only able to find 1 field in the first row, is your field seperator correct?");
+				}
+				_types = new string[_reader.FieldCount];
+				for (var i = 0; i < _reader.FieldCount; i++) {
+					_types[i] = _reader[i];
+				}
+
+				_readTypes = true;
+
+				_reader.ReadNextRecord();
+			}
 			return _reader.ReadNextRecord();
 		}
 

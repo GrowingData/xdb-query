@@ -74,18 +74,23 @@ namespace Mung.Core.Connections.Vendors {
 					qualifiedName = schema + "." + table;
 				}
 
-				var copy = new SqlBulkCopy(_realConnection);
+				var copy = new SqlBulkCopy(_realConnection, SqlBulkCopyOptions.TableLock, null);
 				copy.DestinationTableName = qualifiedName;
+				copy.BatchSize = 1000;
 				copy.BulkCopyTimeout = 9999999;
 				copy.EnableStreaming = true;
-				copy.WriteToServer(context.Reader);
+				copy.NotifyAfter = 1000;
 
 
 				long rows = 0;
 				copy.SqlRowsCopied += (object sender, SqlRowsCopiedEventArgs e) => {
-					rows += e.RowsCopied;
+					rows = e.RowsCopied;
 					CallBulkInsertRowsWritten(rows);
 				};
+
+				copy.WriteToServer(context.Reader);
+
+
 				CallBulkInsertComplete(rows);
 
 

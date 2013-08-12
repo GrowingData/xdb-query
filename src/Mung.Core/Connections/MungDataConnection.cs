@@ -26,6 +26,7 @@ namespace Mung.Core {
 		public event OnBulkInsertCompleteDelegate OnBulkInsertComplete;
 
 		protected void CallBulkInsertRowsWritten(long rows) {
+			MungLog.LogEvent(LogSeverity.info, "MungDataConnection.DoBulkLoad", string.Format("Copied {0} rows.", rows));
 			if (OnBulkInsertRowsWritten != null) {
 				OnBulkInsertRowsWritten(rows);
 			}
