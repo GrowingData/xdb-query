@@ -66,6 +66,21 @@ namespace Mung.Core.Connections {
 		}
 
 
+		public override bool EmptyTable(string schema, string tableName) {
+			var tableExpression = tableName;
+			if (!string.IsNullOrEmpty(schema)) {
+				tableExpression = string.Format("{0}{1}", schema, tableName);
+			}
+			
+			var sql = string.Format(@"
+				DELETE FROM {0}
+				", tableExpression);
+
+			Execute(sql, null);
+			return true;
+		
+		}
+
 		public override IMungDataContext MetaTables() {
 			var sql = @"
 				SELECT table_schema, table_name

@@ -54,6 +54,7 @@ namespace Mung.Core {
 		public abstract bool TableExists(string schema, string tableName);
 		public abstract string CreateTable(string schema, string tableName, MungQuerySchema def);
 		public abstract bool DropTable(string schema, string tableName);
+		public abstract bool EmptyTable(string schema, string tableName);
 
 
 		public abstract void Dispose();

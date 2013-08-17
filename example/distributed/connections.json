@@ -1,0 +1,24 @@
+{
+    "connections": [
+        {
+            "name": "mung-sqlite-01",
+            "provider": "SQLite",
+            "connection_string": "mung-sqlite-01.db"
+        },
+        {
+            "name": "mung-sqlite-02",
+            "provider": "SQLite",
+            "connection_string": "mung-sqlite-02.db"
+        },
+        {
+            "name": "mung-sqlite-03",
+            "provider": "SQLite",
+            "connection_string": "mung-sqlite-03.db"
+        },
+        {
+            "name": "mung-sqlite-04",
+            "provider": "SQLite",
+            "connection_string": "mung-sqlite-04.db"
+        }
+    ]
+}

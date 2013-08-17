@@ -44,6 +44,21 @@ namespace Mung.Core.Connections.Vendors {
 
 
 
+		public override bool EmptyTable(string schema, string tableName) {
+			var tableExpression = tableName;
+			if (!string.IsNullOrEmpty(schema)) {
+				tableExpression = string.Format("{0}.{1}", schema, tableName);
+			}
+
+			var sql = string.Format(@"
+				TRUNCATE TABLE {0}
+				", tableExpression);
+
+			Execute(sql, null);
+			return true;
+
+		}
+
 		public override string CreateTable(string schema, string tableName, MungQuerySchema def) {
 			using (var perf = AppEngine.Time("SqlServerMungConnection.CreateTable")) {
 				var sql = CreateTableScriptWithMungId(schema, tableName, def);

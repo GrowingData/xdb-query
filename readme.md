@@ -3,8 +3,6 @@
 > "This data is in exactly the right format"
 > -- <cite>No Data Scientist Ever</cite>   
 
-Mung is a platform for accessing and manipulating data across distributed databases.
-
 Mung provides a query engine which rewrites and executes SQL against disparate databases, enabling the output from different queries to be merged and manipulated as if they were local expressions.
 
 Mung removes the need to be constantly exporting and importing data as CSV files, enabling you to treat any data source as if it were local while still giving you control over where and how data is processed.

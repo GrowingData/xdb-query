@@ -46,10 +46,16 @@ namespace Mung.Core {
 	/// </summary>
 
 	public class MungQuery : IDisposable {
-		private const string KW_SUBQUERY = "@(";
-		private const string KW_TOLERANT_SUBQUERY = "@?(";
-		private const string KW_INPUT = "@input(";
-		private const string KW_OUTPUT = "@output(";
+		private const string KW_SUBQUERY_CONNECTION_START = "@[";
+		private const string KW_SUBQUERY_CONNECTION_END = "]";
+		private const string KW_SUBQUERY_QUERY_START = "(";
+		private const string KW_SUBQUERY_QUERY_END = ")";
+
+		private const string KW_TOLERANT_SUBQUERY_CONNECTION_START = "@?[";
+
+
+		private const string KW_OUTPUT_CONNECTION_START = "@output[";
+		private const string KW_OUTPUT_CONNECTION_END = "]";
 
 		public string Identifier { get; private set; }
 
@@ -72,7 +78,8 @@ namespace Mung.Core {
 		public string RawQuery { get; private set; }
 		public string ParsedQuery { get; private set; }
 		public string RewrittenQuery { get; private set; }
-		public string ConnectionName { get; private set; }
+		public string InputConnectionName { get; private set; }
+		public string OutputConnectionName { get; private set; }
 		public string Project { get; private set; }
 		public string Name { get; private set; }
 
@@ -137,13 +144,6 @@ namespace Mung.Core {
 		}
 
 
-
-
-		private enum ParseState {
-			None = 0,
-			InAtQuery = 1
-		}
-
 		private string PreviousToken(int from) {
 			var buffer = new StringBuilder();
 
@@ -161,86 +161,63 @@ namespace Mung.Core {
 			var newQuery = new StringBuilder();
 			var previousToken = new StringBuilder();
 
-			var bracketCount = 0;
-			var state = ParseState.None;
-			var start = -1;
-			var tolerant = false;
-
 			for (var i = 0; i < RawQuery.Length; i++) {
 				var c = RawQuery[i];
 
-				switch (state) {
-					case ParseState.InAtQuery:
-						if (c == '(') {
-							bracketCount++;
-							break;
-						}
-						if (c == ')') {
-							bracketCount--;
-							if (bracketCount == 0) {
-								var atQuery = RawQuery.Substring(start, i - start);
-
-								// Lets try to work out if this is a file?
-								if (File.Exists(atQuery)) {
-									// Ok, our query is actually a file reference to another script
-									// so lets load it up!
-									atQuery = File.ReadAllText(atQuery);
-								}
-
-
-								// We want to look back a little to find out what the context for this
-								// subquery is, as if its a JOIN or a FROM, then we need to actually
-								// put the results into a temp table
-								var last = PreviousToken(start - 1 - KW_SUBQUERY.Length).ToLowerInvariant();
-								var requiresTable = last == "join" || last == "from";
-
-								var sub = new MungQuery(this, atQuery, new StartEnd(start, i), requiresTable, tolerant);
-
-								SubQueries.Add(sub);
-								newQuery.Append(sub.Identifier);
-								state = ParseState.None;
-							}
-						}
-						break;
-					case ParseState.None:
-						if (LookAhead(KW_SUBQUERY, RawQuery, ref i)) {
-							// This is the starting point for an @(<subquery>)
-							start = i;
-							bracketCount = 1;
-							state = ParseState.InAtQuery;
-
-							break;
-						}
-						if (LookAhead(KW_TOLERANT_SUBQUERY, RawQuery, ref i)) {
-							// This is the starting point for an @(<subquery>)
-							start = i;
-							bracketCount = 1;
-							state = ParseState.InAtQuery;
-							tolerant = true;
-							break;
-
-						}
-
-						if (LookAhead(KW_INPUT, RawQuery, ref i)) {
-							InputConnection = ReadConnection(ref i);
-							break;
-						}
-						if (LookAhead(KW_OUTPUT, RawQuery, ref i)) {
-							OutputConnection = ReadConnection(ref i);
-							break;
-						}
-
-						newQuery.Append(RawQuery[i]);
-						break;
+				// Sub query: @[<connection-expression>](<query>)
+				if (LookAhead(KW_SUBQUERY_CONNECTION_START, RawQuery, ref i)) {
+					i = ReadSubQuery(i, false);
 				}
+
+
+				// Fault tolerant sub query: @?[<connection-expression>](<query>)
+				if (LookAhead(KW_TOLERANT_SUBQUERY_CONNECTION_START, RawQuery, ref i)) {
+					i = ReadSubQuery(i, true);
+
+				}
+
+				// Output connection: @output[<connection-expression>]
+				if (LookAhead(KW_OUTPUT_CONNECTION_START, RawQuery, ref i)) {
+					OutputConnectionName = ReadUntil(KW_OUTPUT_CONNECTION_END, RawQuery, ref i);
+					OutputConnection = AppEngine.Connections[OutputConnectionName];
+				}
+
+				newQuery.Append(RawQuery[i]);
 			}
 			ParsedQuery = newQuery.ToString();
 			RewrittenQuery = ParsedQuery;
 
 			if (InputConnection == null) {
 				throw new Exception("Input connection not specified");
-				//InputConnection = AppEngine.Warehouse;
 			}
+		}
+
+
+
+		private int ReadSubQuery(int i, bool faultTolerant) {
+			var start = i - KW_SUBQUERY_CONNECTION_START.Length;
+
+			// Lets check if before this is a "from" or "join"
+			var last = PreviousToken(i - 1 - KW_SUBQUERY_CONNECTION_START.Length).ToLowerInvariant();
+			var requiresTable = last == "join" || last == "from";
+
+			// Did we just see a @[<connection-expression>]
+			InputConnectionName = ReadUntil(KW_SUBQUERY_CONNECTION_END, RawQuery, ref i);
+			InputConnection = AppEngine.Connections[InputConnectionName];
+
+			// Now read the actual query...
+			var atQuery = ReadUntilBalanced(KW_SUBQUERY_QUERY_END, KW_SUBQUERY_QUERY_START, RawQuery, ref i);
+
+			// Lets try to work out if this is a file?
+			if (File.Exists(atQuery)) {
+				// Ok, our query is actually a file reference to another script
+				// so lets load it up!
+				atQuery = File.ReadAllText(atQuery);
+			}
+
+			var sub = new MungQuery(this, atQuery, new StartEnd(start, i), requiresTable, faultTolerant);
+			SubQueries.Add(sub);
+			return i;
 		}
 
 		public void RewriteQuery(string identified, string newQuery) {
@@ -250,20 +227,6 @@ namespace Mung.Core {
 
 		}
 
-		private MungDataConnection ReadConnection(ref int i) {
-			int usingStart = i;
-			// Lets get the connection that we are supposed to be using
-			while (RawQuery[i] != ')' && i < RawQuery.Length) {
-				i++;
-			}
-			ConnectionName = RawQuery.Substring(usingStart, i - usingStart).Trim();
-
-			var connection = AppEngine.Connections[ConnectionName];
-			if (connection == null) {
-				throw new InvalidOperationException(string.Format("Unknown connection \"{0}\".  Please add it to your connections.json file.", ConnectionName));
-			}
-			return connection;
-		}
 
 		public IMungDataContext Execute() {
 			return Execute(null, null);
@@ -384,7 +347,51 @@ namespace Mung.Core {
 			return true;
 		}
 
+		protected string ReadUntil(string searchFor, string searchIn, ref int pos) {
+			StringBuilder sb = new StringBuilder();
 
+			while (pos < searchIn.Length - searchFor.Length) {
+				if (searchIn.Substring(pos, searchFor.Length) == searchFor) {
+					return sb.ToString();
+				}
+
+				sb.Append(searchIn[pos]);
+				pos++;
+			}
+
+			// Didn't find it.
+			return null;
+		}
+
+		/// <summary>
+		/// Lets you find everything between say "{" and "}", except that we allow
+		/// ")" if they are proceeded by a "(" (exceptFor)
+		/// </summary>
+		/// <param name="searchFor"></param>
+		/// <param name="exceptFor"></param>
+		/// <param name="searchIn"></param>
+		/// <param name="pos"></param>
+		/// <returns></returns>
+		protected string ReadUntilBalanced(string searchFor, string exceptFor, string searchIn, ref int pos) {
+			StringBuilder sb = new StringBuilder();
+			int balancer = 0;
+			while (pos < searchIn.Length - searchFor.Length) {
+
+				if (balancer == 0 && searchIn.Substring(pos, searchFor.Length) == searchFor) {
+					return sb.ToString();
+				}
+
+				if (searchIn.Substring(pos, searchFor.Length) == exceptFor) {
+					balancer++;
+				}
+
+				sb.Append(searchIn[pos]);
+				pos++;
+			}
+
+			// Didn't find it.
+			return null;
+		}
 
 		public void Dispose() {
 			foreach (var child in SubQueries) {
@@ -394,10 +401,10 @@ namespace Mung.Core {
 
 			if (Parent != null && this.RequiresTable) {
 				try {
-					if (Parent.ConnectionName == null){
+					if (Parent.InputConnectionName == null) {
 						throw new Exception(string.Format("Unable to clean up table '{0}', as no connection is specified", TableName));
 					}
-					using (var cn = AppEngine.Connections[Parent.ConnectionName]) {
+					using (var cn = AppEngine.Connections[Parent.InputConnectionName]) {
 						cn.DropTable(null, TableName);
 					}
 				} catch (Exception ex) {

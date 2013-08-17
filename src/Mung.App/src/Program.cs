@@ -16,8 +16,16 @@ using System.IO;
 using Mung.Core;
 
 namespace Mung.App {
-	class Program {
+	public class Program {
 		delegate void OperationDelegate(string[] args);
+
+		public static Dictionary<string, IConsoleCommand> Operations =  new Dictionary<string, IConsoleCommand>(){
+				{"update", new UpdateCommand()},
+				{"run", new RunCommand()},
+				{"csv", new CsvCommand()},
+				{"copy", new CopyCommand()},
+				{"batch", new BatchCommand()},
+			};
 
 		private static void PrintInstructions(Dictionary<string, IConsoleCommand> operations) {
 			StringBuilder output = new StringBuilder();
@@ -35,7 +43,7 @@ namespace Mung.App {
 			Console.WriteLine(output.ToString());
 		}
 
-		static string[] ParseOptions(string[] args) {
+		public static string[] ParseOptions(string[] args) {
 			var operations = new Dictionary<string, Action<string>>(){
 				{
 					"--log", (p) => {
@@ -61,15 +69,10 @@ namespace Mung.App {
 		static void Main(string[] args) {
 			// Make sure we have a valid command before we go and connect to stuff
 			// which takes time.
-			var operations = new Dictionary<string, IConsoleCommand>(){
-				{"update", new UpdateCommand()},
-				{"run", new RunCommand()},
-				{"csv", new CsvCommand()},
-			};
 
 			if (args.Length == 0) {
 				MungLog.LogException("Select command", new Exception("No command selected"));
-				PrintInstructions(operations);
+				PrintInstructions(Operations);
 				return;
 			}
 
@@ -105,7 +108,7 @@ namespace Mung.App {
 
 				IConsoleCommand cc;
 
-				if (operations.TryGetValue(opName, out cc)) {
+				if (Operations.TryGetValue(opName, out cc)) {
 
 					//Task.Run(() => {
 					cc.Execute(filteredArgs);
@@ -113,7 +116,7 @@ namespace Mung.App {
 
 				} else {
 					MungLog.LogException("Select command", new Exception(string.Format("Unknown command: {0}", opName)));
-					PrintInstructions(operations);
+					PrintInstructions(Operations);
 				}
 
 				// Quit 

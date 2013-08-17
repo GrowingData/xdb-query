@@ -44,6 +44,8 @@
     <Compile Include="src\IConsoleCommand.cs" />
     <Compile Include="src\Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="src\run\BatchCommand.cs" />
+    <Compile Include="src\run\CopyCommand.cs" />
     <Compile Include="src\run\CsvCommand.cs" />
     <Compile Include="src\run\RunCommand.cs" />
     <Compile Include="src\run\UpdateCommand.cs" />

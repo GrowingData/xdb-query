@@ -87,6 +87,7 @@
     <Compile Include="Utilities\MungTimer.cs" />
     <Compile Include="Utilities\StreamExtensions.cs" />
     <Compile Include="Utilities\StringHelpers.cs" />
+    <Compile Include="Utilities\Wildcard.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LumenWorks.Framework.IO\LumenWorks.Framework.IO.csproj">
