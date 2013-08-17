@@ -42,7 +42,7 @@ namespace Mung.App {
 		}
 
 		public static void RunScript(string scriptName) {
-			var cmd = new MungQuery(scriptName);
+			var cmd = MungQuery.Parse(scriptName);
 
 			if (cmd.OutputConnection == null) {
 				MungLog.LogException("UpdateCommand", new Exception("Script: {0} does not have an @output(<connection_name>) specified.  Where do I put these results?"));

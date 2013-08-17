@@ -78,6 +78,7 @@
     <Compile Include="DataAccess\Munged\MungMetaData.cs" />
     <Compile Include="DataAccess\Munged\TypeConverter.cs" />
     <Compile Include="Connections\ConnectionManager.cs" />
+    <Compile Include="DataAccess\Query\MungDistributedQuery.cs" />
     <Compile Include="DataAccess\Query\MungQuery.cs" />
     <Compile Include="Engine\AppEngine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

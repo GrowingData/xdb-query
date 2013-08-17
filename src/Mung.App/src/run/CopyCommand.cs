@@ -90,7 +90,7 @@ namespace Mung.App {
 		}
 
 		public static long RunScript(string scriptName, Dictionary<string, object> parameters) {
-			using (var cmd = new MungQuery(scriptName)) {
+			using (var cmd = MungQuery.Parse(scriptName)) {
 
 				if (cmd.OutputConnection == null) {
 					return -1;

@@ -89,7 +89,24 @@ namespace Mung.Core {
 
 		private object _sync = new object();
 
-		public MungQuery(string filePath) {
+		public static MungQuery Parse(string filePath) {
+			var query = new MungQuery(filePath);
+
+			if (query.InputConnectionName == null && query.SubQueries.Count==1) {
+				// If no input connection is set, then this query isn't really
+				// a query, as we have no context, so return the child which will
+				// have it all set properly.
+
+				var sub = query.SubQueries[0];
+				sub.Parent = null;
+				sub.ParentPosition = null;
+				return sub;
+			}
+
+			return query;
+		}
+
+		private MungQuery(string filePath) {
 			HasChildError = false;
 			if (File.Exists(filePath)) {
 				Identifier = Guid.NewGuid().ToString().Replace("-", "").ToLower();
@@ -110,7 +127,7 @@ namespace Mung.Core {
 
 		}
 
-		public MungQuery(string project, string query) {
+		private MungQuery(string project, string query) {
 			HasChildError = false;
 			Identifier = Guid.NewGuid().ToString().Replace("-", "").ToLower();
 			SubQueries = new List<MungQuery>();
@@ -119,16 +136,19 @@ namespace Mung.Core {
 			Project = project;
 
 			Parse();
+
+
+
 		}
 
 		/// <summary>
-		/// Constructor for building a subquery @("query")
+		/// Constructor for building a subquery @[{connection}]("query")
 		/// </summary>
 		/// <param name="project"></param>
 		/// <param name="query"></param>
 		/// <param name="position"></param>
 		/// <param name="requiresTable"></param>
-		private MungQuery(MungQuery parent, string query, StartEnd position, bool requiresTable, bool tolerant) {
+		private MungQuery(MungQuery parent, string query, StartEnd position, bool requiresTable, bool tolerant, string connectionName) {
 			HasChildError = false;
 			Parent = parent;
 			Identifier = Guid.NewGuid().ToString().Replace("-", "").ToLower();
@@ -139,6 +159,12 @@ namespace Mung.Core {
 			ParentPosition = position;
 			RequiresTable = requiresTable;
 			TolerantOfErrors = tolerant;
+
+			InputConnectionName = connectionName;
+			InputConnection = AppEngine.Connections[connectionName];
+			if (InputConnection == null) {
+				throw new Exception("Unable to find connection with name: " + connectionName);
+			}
 
 			Parse();
 		}
@@ -166,13 +192,18 @@ namespace Mung.Core {
 
 				// Sub query: @[<connection-expression>](<query>)
 				if (LookAhead(KW_SUBQUERY_CONNECTION_START, RawQuery, ref i)) {
-					i = ReadSubQuery(i, false);
+					var sub = ReadSubQuery(i, false);
+					i = sub.ParentPosition.End + 1;
+					newQuery.Append(sub.Identifier);
+
 				}
 
 
 				// Fault tolerant sub query: @?[<connection-expression>](<query>)
 				if (LookAhead(KW_TOLERANT_SUBQUERY_CONNECTION_START, RawQuery, ref i)) {
-					i = ReadSubQuery(i, true);
+					var sub = ReadSubQuery(i, true);
+					i = sub.ParentPosition.End + 1;
+					newQuery.Append(sub.Identifier);
 
 				}
 
@@ -181,20 +212,21 @@ namespace Mung.Core {
 					OutputConnectionName = ReadUntil(KW_OUTPUT_CONNECTION_END, RawQuery, ref i);
 					OutputConnection = AppEngine.Connections[OutputConnectionName];
 				}
-
-				newQuery.Append(RawQuery[i]);
+				if (i < RawQuery.Length) {
+					newQuery.Append(RawQuery[i]);
+				}
 			}
 			ParsedQuery = newQuery.ToString();
 			RewrittenQuery = ParsedQuery;
 
-			if (InputConnection == null) {
+			if (InputConnection == null && Parent != null) {
 				throw new Exception("Input connection not specified");
 			}
 		}
 
 
 
-		private int ReadSubQuery(int i, bool faultTolerant) {
+		private MungQuery ReadSubQuery(int i, bool faultTolerant) {
 			var start = i - KW_SUBQUERY_CONNECTION_START.Length;
 
 			// Lets check if before this is a "from" or "join"
@@ -202,11 +234,11 @@ namespace Mung.Core {
 			var requiresTable = last == "join" || last == "from";
 
 			// Did we just see a @[<connection-expression>]
-			InputConnectionName = ReadUntil(KW_SUBQUERY_CONNECTION_END, RawQuery, ref i);
-			InputConnection = AppEngine.Connections[InputConnectionName];
+			string connection = ReadUntil(KW_SUBQUERY_CONNECTION_END, RawQuery, ref i);
+			//InputConnection = AppEngine.Connections[InputConnectionName];
 
 			// Now read the actual query...
-			var atQuery = ReadUntilBalanced(KW_SUBQUERY_QUERY_END, KW_SUBQUERY_QUERY_START, RawQuery, ref i);
+			var atQuery = FindBetweenBalanced(KW_SUBQUERY_QUERY_START, KW_SUBQUERY_QUERY_END, RawQuery, ref i);
 
 			// Lets try to work out if this is a file?
 			if (File.Exists(atQuery)) {
@@ -215,14 +247,16 @@ namespace Mung.Core {
 				atQuery = File.ReadAllText(atQuery);
 			}
 
-			var sub = new MungQuery(this, atQuery, new StartEnd(start, i), requiresTable, faultTolerant);
+			var sub = new MungQuery(this, atQuery, new StartEnd(start, i), requiresTable, faultTolerant, connection);
 			SubQueries.Add(sub);
-			return i;
+
+
+			return sub;
 		}
 
-		public void RewriteQuery(string identified, string newQuery) {
+		public void RewriteQuery(string identifier, string newQuery) {
 			lock (_sync) {
-				RewrittenQuery = RewrittenQuery.Replace(identified, newQuery);
+				RewrittenQuery = RewrittenQuery.Replace(identifier, newQuery);
 			}
 
 		}
@@ -257,7 +291,7 @@ namespace Mung.Core {
 			}
 
 
-			if (parent == null) {
+			if (parent==null) {
 				using (var kids = AppEngine.Time("MungQuery.Execute.Parent")) {
 					// No parent, so we can just execute the text against the connection
 					return InputConnection.Execute(RewrittenQuery, parameters);
@@ -367,21 +401,39 @@ namespace Mung.Core {
 		/// Lets you find everything between say "{" and "}", except that we allow
 		/// ")" if they are proceeded by a "(" (exceptFor)
 		/// </summary>
-		/// <param name="searchFor"></param>
-		/// <param name="exceptFor"></param>
+		/// <param name="findStart"></param>
+		/// <param name="findEnd"></param>
 		/// <param name="searchIn"></param>
 		/// <param name="pos"></param>
 		/// <returns></returns>
-		protected string ReadUntilBalanced(string searchFor, string exceptFor, string searchIn, ref int pos) {
+		protected string FindBetweenBalanced(string findStart, string findEnd, string searchIn, ref int pos) {
 			StringBuilder sb = new StringBuilder();
 			int balancer = 0;
-			while (pos < searchIn.Length - searchFor.Length) {
 
-				if (balancer == 0 && searchIn.Substring(pos, searchFor.Length) == searchFor) {
-					return sb.ToString();
+			// Get to the start first up...
+			while (pos <= searchIn.Length - findStart.Length) {
+				if (searchIn.Substring(pos, findStart.Length) == findStart) {
+					pos++;
+					break;
+				}
+				pos++;
+			}
+			if (pos == searchIn.Length) {
+				// Unable to find the start position
+				return null;
+			}
+
+			while (pos <= searchIn.Length - findEnd.Length) {
+
+				if (searchIn.Substring(pos, findEnd.Length) == findEnd) {
+					if (balancer == 0) {
+						return sb.ToString();
+					} else {
+						balancer--;
+					}
 				}
 
-				if (searchIn.Substring(pos, searchFor.Length) == exceptFor) {
+				if (searchIn.Substring(pos, findStart.Length) == findStart) {
 					balancer++;
 				}
 
@@ -404,9 +456,10 @@ namespace Mung.Core {
 					if (Parent.InputConnectionName == null) {
 						throw new Exception(string.Format("Unable to clean up table '{0}', as no connection is specified", TableName));
 					}
-					using (var cn = AppEngine.Connections[Parent.InputConnectionName]) {
-						cn.DropTable(null, TableName);
-					}
+					Parent.InputConnection.DropTable(null, TableName);
+					//using (var cn = AppEngine.Connections[Parent.InputConnectionName]) {
+					//	cn.DropTable(null, TableName);
+					//}
 				} catch (Exception ex) {
 					MungLog.LogException("MungQuery.Dispose", ex);
 				}

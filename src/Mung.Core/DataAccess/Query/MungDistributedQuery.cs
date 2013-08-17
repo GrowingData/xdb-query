@@ -64,9 +64,7 @@ namespace Mung.Core {
 		/// <param name="query"></param>
 		/// <returns></returns>
 		public static string Rewrite(string query) {
-		
-
-
+			return query;
 		
 		}
 

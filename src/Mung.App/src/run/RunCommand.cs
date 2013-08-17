@@ -50,7 +50,7 @@ namespace Mung.App {
 		}
 
 		public static long RunScript(string scriptName, Dictionary<string, object> parameters) {
-			using (var cmd = new MungQuery(scriptName)) {
+			using (var cmd = MungQuery.Parse(scriptName)) {
 
 				//if (cmd.OutputConnection == null) {
 				//	return -1;
@@ -61,6 +61,7 @@ namespace Mung.App {
 						return 0;
 					}
 				}
+
 				var name = Path.GetFileNameWithoutExtension(scriptName);
 				MungLog.LogException("RunScript", new Exception(string.Format("\"{0}\" failed to run.", name)));
 				return -1;
