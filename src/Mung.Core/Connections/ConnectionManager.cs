@@ -50,7 +50,7 @@ namespace Mung.Core {
 
 			// Create a connection for our local in memory connection
 			var mung = new ConnectionDefinition() {
-				connection_string = "Data Source=demo.db",
+				connection_string = "Data Source=mung.db",
 				name = "mung",
 				provider = "SQLite"
 			};
@@ -71,6 +71,14 @@ namespace Mung.Core {
 			_connectionsByName["mung"] = connection;
 		}
 
+		public List<MungDataConnection> Match(string pattern) {
+			var wildcard = new Wildcard(pattern);
+			return _connectionsByName
+				.Values
+				.Where(x => wildcard.IsMatch(x.name))
+				.Select(jc => MungConnectionFactory.FromProvider(jc.provider, jc.name, jc.connection_string))
+				.ToList();
+		}
 
 
 		public MungDataConnection this[string name] {

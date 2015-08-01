@@ -24,7 +24,7 @@ namespace Mung.Core {
 	/// context.
 	/// </summary>
 
-	public static class MungDistributedQuery {
+	public class MungDistributedQuery {
 
 		/// <summary>
 		/// Take a query that looks like:
@@ -34,36 +34,35 @@ namespace Mung.Core {
 		///		)
 		/// -------------
 		/// And Rewrite it to look like:
-		/// 
-		///		SELECT * 
-		///		FROM (@[mung-sqlite-01](
+		///		@[mung-sqlite-01] (
 		///			SELECT * FROM tbl
-		///		)
+		///			
+		///			UNION ALL 
 		///		
-		///		UNION ALL 
+		///			@[mung-sqlite-02](
+		///				SELECT * FROM tbl
+		///			)
 		///		
-		///		SELECT * 
-		///		FROM (@[mung-sqlite-02](
-		///			SELECT * FROM tbl
-		///		)
+		///			UNION ALL 
 		///		
-		///		UNION ALL 
+		///			@[mung-sqlite-03](
+		///				SELECT * FROM tbl
+		///			)
 		///		
-		///		SELECT * 
-		///		FROM (@[mung-sqlite-03](
-		///			SELECT * FROM tbl
-		///		)
+		///			UNION ALL 
 		///		
-		///		UNION ALL 
-		///		
-		///		SELECT * 
-		///		FROM (@[mung-sqlite-04](
-		///			SELECT * FROM tbl
+		///			@[mung-sqlite-04](
+		///				SELECT * FROM tbl
+		///			)
 		///		)
 		/// </summary>
 		/// <param name="query"></param>
 		/// <returns></returns>
 		public static string Rewrite(string query) {
+
+
+
+
 			return query;
 		
 		}

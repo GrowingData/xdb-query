@@ -191,7 +191,7 @@ namespace Mung.Core {
 				var c = RawQuery[i];
 
 				// Sub query: @[<connection-expression>](<query>)
-				if (LookAhead(KW_SUBQUERY_CONNECTION_START, RawQuery, ref i)) {
+				if (RawQuery.LookAhead(KW_SUBQUERY_CONNECTION_START, ref i)) {
 					var sub = ReadSubQuery(i, false);
 					i = sub.ParentPosition.End + 1;
 					newQuery.Append(sub.Identifier);
@@ -200,7 +200,7 @@ namespace Mung.Core {
 
 
 				// Fault tolerant sub query: @?[<connection-expression>](<query>)
-				if (LookAhead(KW_TOLERANT_SUBQUERY_CONNECTION_START, RawQuery, ref i)) {
+				if (RawQuery.LookAhead(KW_TOLERANT_SUBQUERY_CONNECTION_START, ref i)) {
 					var sub = ReadSubQuery(i, true);
 					i = sub.ParentPosition.End + 1;
 					newQuery.Append(sub.Identifier);
@@ -208,8 +208,8 @@ namespace Mung.Core {
 				}
 
 				// Output connection: @output[<connection-expression>]
-				if (LookAhead(KW_OUTPUT_CONNECTION_START, RawQuery, ref i)) {
-					OutputConnectionName = ReadUntil(KW_OUTPUT_CONNECTION_END, RawQuery, ref i);
+				if (RawQuery.LookAhead(KW_OUTPUT_CONNECTION_START, ref i)) {
+					OutputConnectionName = RawQuery.ReadUntil(KW_OUTPUT_CONNECTION_END, ref i);
 					OutputConnection = AppEngine.Connections[OutputConnectionName];
 				}
 				if (i < RawQuery.Length) {
@@ -234,11 +234,23 @@ namespace Mung.Core {
 			var requiresTable = last == "join" || last == "from";
 
 			// Did we just see a @[<connection-expression>]
-			string connection = ReadUntil(KW_SUBQUERY_CONNECTION_END, RawQuery, ref i);
+			string cnPattern = RawQuery.ReadUntil(KW_SUBQUERY_CONNECTION_END, ref i);
+
+			// Wait a second here, does this match multiple connections?
+			var connections = AppEngine.Connections.Match(cnPattern);
+			if (connections.Count > 1) {
+				// chose a host for this query randomly
+
+
+			} else {
+			
+			}
+
+
 			//InputConnection = AppEngine.Connections[InputConnectionName];
 
 			// Now read the actual query...
-			var atQuery = FindBetweenBalanced(KW_SUBQUERY_QUERY_START, KW_SUBQUERY_QUERY_END, RawQuery, ref i);
+			var atQuery = RawQuery.FindBetweenBalanced(KW_SUBQUERY_QUERY_START, KW_SUBQUERY_QUERY_END, ref i);
 
 			// Lets try to work out if this is a file?
 			if (File.Exists(atQuery)) {
@@ -247,7 +259,7 @@ namespace Mung.Core {
 				atQuery = File.ReadAllText(atQuery);
 			}
 
-			var sub = new MungQuery(this, atQuery, new StartEnd(start, i), requiresTable, faultTolerant, connection);
+			var sub = new MungQuery(this, atQuery, new StartEnd(start, i), requiresTable, faultTolerant, cnPattern);
 			SubQueries.Add(sub);
 
 
@@ -358,92 +370,6 @@ namespace Mung.Core {
 ", ex.Message, rewrittenQuery.Replace("\n", "\n\t"));
 		}
 
-
-		/// <summary>
-		/// Returns true when "searchFor" starts a position "pos" within
-		/// "searchIn" and increments "pos" by the length of searchFor.  If
-		/// searchFor does not exist, "pos" will be untouched.
-		/// </summary>
-		/// <param name="searchFor"></param>
-		/// <param name="searchIn"></param>
-		/// <param name="pos"></param>
-		/// <returns></returns>
-		protected bool LookAhead(string searchFor, string searchIn, ref int pos) {
-			if (searchFor.Length + pos >= searchIn.Length) {
-				return false;
-			}
-			for (var i = 0; i < searchFor.Length; i++) {
-				if (searchFor[i] != searchIn[i + pos]) {
-					return false;
-				}
-			}
-			pos += searchFor.Length;
-			return true;
-		}
-
-		protected string ReadUntil(string searchFor, string searchIn, ref int pos) {
-			StringBuilder sb = new StringBuilder();
-
-			while (pos < searchIn.Length - searchFor.Length) {
-				if (searchIn.Substring(pos, searchFor.Length) == searchFor) {
-					return sb.ToString();
-				}
-
-				sb.Append(searchIn[pos]);
-				pos++;
-			}
-
-			// Didn't find it.
-			return null;
-		}
-
-		/// <summary>
-		/// Lets you find everything between say "{" and "}", except that we allow
-		/// ")" if they are proceeded by a "(" (exceptFor)
-		/// </summary>
-		/// <param name="findStart"></param>
-		/// <param name="findEnd"></param>
-		/// <param name="searchIn"></param>
-		/// <param name="pos"></param>
-		/// <returns></returns>
-		protected string FindBetweenBalanced(string findStart, string findEnd, string searchIn, ref int pos) {
-			StringBuilder sb = new StringBuilder();
-			int balancer = 0;
-
-			// Get to the start first up...
-			while (pos <= searchIn.Length - findStart.Length) {
-				if (searchIn.Substring(pos, findStart.Length) == findStart) {
-					pos++;
-					break;
-				}
-				pos++;
-			}
-			if (pos == searchIn.Length) {
-				// Unable to find the start position
-				return null;
-			}
-
-			while (pos <= searchIn.Length - findEnd.Length) {
-
-				if (searchIn.Substring(pos, findEnd.Length) == findEnd) {
-					if (balancer == 0) {
-						return sb.ToString();
-					} else {
-						balancer--;
-					}
-				}
-
-				if (searchIn.Substring(pos, findStart.Length) == findStart) {
-					balancer++;
-				}
-
-				sb.Append(searchIn[pos]);
-				pos++;
-			}
-
-			// Didn't find it.
-			return null;
-		}
 
 		public void Dispose() {
 			foreach (var child in SubQueries) {

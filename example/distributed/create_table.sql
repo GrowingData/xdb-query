@@ -1,6 +1,5 @@
 
-@mung-sqlite-*(
-
+@[mung-sqlite-*](
 	CREATE TABLE customer(
 	    CustKey INTEGER NULL,
 	    Name TEXT NULL,
@@ -11,7 +10,7 @@
 	    MktSegment TEXT NULL,
 	    Comment TEXT NULL
 	)
-	
+
 	CREATE TABLE lineitem(
 	    OrderKey INTEGER NULL,
 	    PartKey INTEGER NULL,
@@ -85,5 +84,4 @@
 	    AcctBal REAL NULL,
 	    Comment TEXT NULL
 	)
-
 )

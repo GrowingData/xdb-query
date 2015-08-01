@@ -82,5 +82,96 @@ namespace Mung.Core {
 			}
 			return sb.ToString();
 		}
+
+
+
+		/// <summary>
+		/// Returns true when "searchFor" starts a position "pos" within
+		/// "searchIn" and increments "pos" by the length of searchFor.  If
+		/// searchFor does not exist, "pos" will be untouched.
+		/// </summary>
+		/// <param name="searchFor"></param>
+		/// <param name="searchIn"></param>
+		/// <param name="pos"></param>
+		/// <returns></returns>
+		public static bool LookAhead(this string searchIn, string searchFor, ref int pos) {
+			if (searchFor.Length + pos >= searchIn.Length) {
+				return false;
+			}
+			for (var i = 0; i < searchFor.Length; i++) {
+				if (searchFor[i] != searchIn[i + pos]) {
+					return false;
+				}
+			}
+			pos += searchFor.Length;
+			return true;
+		}
+
+		public static string ReadUntil(this string searchIn, string searchFor, ref int pos) {
+			StringBuilder sb = new StringBuilder();
+
+			while (pos < searchIn.Length - searchFor.Length) {
+				if (searchIn.Substring(pos, searchFor.Length) == searchFor) {
+					return sb.ToString();
+				}
+
+				sb.Append(searchIn[pos]);
+				pos++;
+			}
+
+			// Didn't find it.
+			return null;
+		}
+
+		/// <summary>
+		/// Lets you find everything between say "{" and "}", except that we allow
+		/// ")" if they are proceeded by a "(" (exceptFor)
+		/// </summary>
+		/// <param name="findStart"></param>
+		/// <param name="findEnd"></param>
+		/// <param name="searchIn"></param>
+		/// <param name="pos"></param>
+		/// <returns></returns>
+		public static string FindBetweenBalanced(this string searchIn, string findStart, string findEnd,  ref int pos) {
+			StringBuilder sb = new StringBuilder();
+			int balancer = 0;
+
+			// Get to the start first up...
+			while (pos <= searchIn.Length - findStart.Length) {
+				if (searchIn.Substring(pos, findStart.Length) == findStart) {
+					pos++;
+					break;
+				}
+				pos++;
+			}
+			if (pos == searchIn.Length) {
+				// Unable to find the start position
+				return null;
+			}
+
+			while (pos <= searchIn.Length - findEnd.Length) {
+
+				if (searchIn.Substring(pos, findEnd.Length) == findEnd) {
+					if (balancer == 0) {
+						return sb.ToString();
+					} else {
+						balancer--;
+					}
+				}
+
+				if (searchIn.Substring(pos, findStart.Length) == findStart) {
+					balancer++;
+				}
+
+				sb.Append(searchIn[pos]);
+				pos++;
+			}
+
+			// Didn't find it.
+			return null;
+		}
+
+
+
 	}
 }

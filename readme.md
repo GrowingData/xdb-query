@@ -1,13 +1,13 @@
-#Mung
+#xdb-query
 
 > "This data is in exactly the right format"
 > -- <cite>No Data Scientist Ever</cite>   
 
-Mung provides a query engine which rewrites and executes SQL against disparate databases, enabling the output from different queries to be merged and manipulated as if they were local expressions.
+xdb-query provides a query engine which rewrites and executes SQL against disparate databases, enabling the output from different queries to be merged and manipulated as if they were local expressions.
 
-Mung removes the need to be constantly exporting and importing data as CSV files, enabling you to treat any data source as if it were local while still giving you control over where and how data is processed.
+xdb-query removes the need to be constantly exporting and importing data as CSV files, enabling you to treat any data source as if it were local while still giving you control over where and how data is processed.
 
-Mung also enables the partitioning of data so that any database can be split amongst many servers and queried as if it were a single database. 
+xdb-query also enables the partitioning of data so that any database can be split amongst many servers and queried as if it were a single database. 
 
 
 ## Example
@@ -28,17 +28,17 @@ And your CEO says to you:
 	"accounting": "Data Source=accounting_srv;User Id=***;Password=***;Integrated Security=no;",
     "web_events": "data source=web_srv;initial catalog=web_events;user id=***;password=***",
     "support": "Provider=PostgreSQL OLE DB Provider;Data Source=support_srv;location=support;User ID=***;Password=***;",
-    "mung": "<Mung Data Warehouse Process / MonetDB>"
+    "xdb-query": "<xdb-query Data Warehouse Process / MonetDB>"
 }
 
 ```
-The connections.json file tells MUNG how to connect to the various data sources.  MUNG currently supports SQL Server, Oracle, MySql, Sqlite, Postgres, MariaDB, MonetDB, RedShift and many more. 
+The connections.json file tells xdb-query how to connect to the various data sources.  xdb-query currently supports SQL Server, Oracle, MySql, Sqlite, Postgres, MariaDB, MonetDB, RedShift and many more. 
 
 
 [example.mql]
 
 ```sql
-@mung(
+@xdb-query(
 
     SELECT high_value.company_name, high_value.email, high_value.revenue, inactive.LastSeen, open_tickets.tickets
 
@@ -86,12 +86,12 @@ The connections.json file tells MUNG how to connect to the various data sources.
 The `@<connection_name>(<query>)` specifies that `<query>` is to be executed on connection `<connection_name>`/.  The results of the query will automatically be streamed to the parent context, and deleted following query execution.
     
 
-##Why Mung
+##Why xdb-query
 I got sick of writing code to move data from one database to another.
 
 So I decided to write code to move data from one database to another (smart eh?), but at least it's written now so you can avoid writing it!
 
-##What can I use Mung for?
+##What can I use xdb-query for?
 
 ###Importing data from production systems
 Operation data systems contain the data you need, but the queries we want to run as Data Scientists are often rather resource intensive.  The last thing we want is to break production systems.
@@ -99,22 +99,22 @@ Operation data systems contain the data you need, but the queries we want to run
 In high end systems, database mirroring or replication is a good way to get around these issues, but that means extra hardware and more ways to break your production systems.  Often you only need to access a handful of tables, so why not just use:
 
 ```sql
-@output(mung.invoices)
+@output(xdb-query.invoices)
 @cache(MAX_AGE=24H,LAST=2013-10-14T12:34AM)
 
 @accounting(
 	SELECT *
 	FROM invoices
-	WHERE invoice_id > @mung(
+	WHERE invoice_id > @xdb-query(
 		SELECT MAX(invoice_id)
 	    FROM invoices
 	)
 )
 ```
 
-`@output(<connection>.<table>)` specifies that when this script is run, its output should streamed to the `<table>` using `<connection>`.  As with all MUNG queries, if the table does not exist, it will be created.  If the table does exist, the table will be appended to.
+`@output(<connection>.<table>)` specifies that when this script is run, its output should streamed to the `<table>` using `<connection>`.  As with all xdb-query queries, if the table does not exist, it will be created.  If the table does exist, the table will be appended to.
 
-`@cache(CACHE_STRING)` tells MUNG about when to query the output table (`mung.invoices` in this case), or when to actually run the query.  This enables you to work with cached data rather than going back to source tables.    This means you can create cron jobs to run MUNG periodically to update queries.  The `LAST` field of the CACHE_STRING will be updated every time the execution of the query actually updates raw data.
+`@cache(CACHE_STRING)` tells xdb-query about when to query the output table (`xdb-query.invoices` in this case), or when to actually run the query.  This enables you to work with cached data rather than going back to source tables.    This means you can create cron jobs to run xdb-query periodically to update queries.  The `LAST` field of the CACHE_STRING will be updated every time the execution of the query actually updates raw data.
 
 
 ### Precooking data
@@ -151,7 +151,7 @@ The solution is to create a cached representation of the table with the expensiv
 
 [cached_transactions.mql]
 ```sql
-@output(mung.cached_transactions, DROP)
+@output(xdb-query.cached_transactions, DROP)
 @update_policy(MAX_AGE=24H,LAST=2013-10-14T12:01AM)
 
 @accounting(
@@ -182,22 +182,22 @@ Since there is no aggregation or join, this query returns in milliseconds.
 ### Excution against a .mql file
 You may have noticed that [get_cached_transactions.mql] references `@cached_transactions.mql`, rather than a table directly. 
 
-This instructs MUNG to refer to the script file rather than sending the query directly to the database engine.  When this query is executed as follows:
+This instructs xdb-query to refer to the script file rather than sending the query directly to the database engine.  When this query is executed as follows:
 
-    mung exec get_cached_transactions.mql @country_code='US',@state_code='NY',@product_code='Services'
+    xdb-query exec get_cached_transactions.mql @country_code='US',@state_code='NY',@product_code='Services'
 
-Mung will go through the following steps:
+xdb-query will go through the following steps:
 
 - read the `cached_transactions.mql` file
-- rewrite the `@cached_transactions.mql` reference to point to the `cached_transactions` table on the `mung` connection (as referenced in the `@output()` directive
-- execute the re-written query using the `mung` connection
+- rewrite the `@cached_transactions.mql` reference to point to the `cached_transactions` table on the `xdb-query` connection (as referenced in the `@output()` directive
+- execute the re-written query using the `xdb-query` connection
 
 This will happen recursively, since a  `.mql` file may in turn reference other `.mql` files.   
 
 ### Refreshing of cached data
 Queries can be updated by executing:
 
-    mung refresh <query_name>.mql
+    xdb-query refresh <query_name>.mql
 
 When evaulating an update request, the `@update_policy()` directive will be evaluated to determine if the query neeeds to be updated.
 
@@ -206,8 +206,8 @@ Where query references other queries, they will also be evaluated, such that if 
 For example:
 [parent.mql]
 ```sql
-@input(mung)
-@output(mung.cached_transactions, DROP)
+@input(xdb-query)
+@output(xdb-query.cached_transactions, DROP)
 @update_policy(MAX_AGE=7D,LAST=2013-10-14T12:01AM)
 
 SELECT * FROM child.mql
@@ -216,7 +216,7 @@ SELECT * FROM child.mql
 [child.mql]
 ```sql
 @input(accounting)
-@output(mung.cached_transactions, DROP)
+@output(xdb-query.cached_transactions, DROP)
 @update_policy(MAX_AGE=1H,LAST=2013-10-14T12:01AM)
 
 SELECT * FROM invoices
@@ -224,17 +224,17 @@ SELECT * FROM invoices
 
 If at 2013-10-14:2:00AM we run:
 
-    mung update parent.mql
+    xdb-query update parent.mql
     
-MUNG will read `parent.mql` and see that it was last run 2 hours ago, which means it doesn't require an update.  However, it will also read `child.mql`, which only has a 1 hour MAX_AGE and thus needs to be re-run.  This will in turn force an update of `parent.mql`.
+xdb-query will read `parent.mql` and see that it was last run 2 hours ago, which means it doesn't require an update.  However, it will also read `child.mql`, which only has a 1 hour MAX_AGE and thus needs to be re-run.  This will in turn force an update of `parent.mql`.
 
-If the MAX_AGE's were reversed (parent has a MAX_AGE of 1H and child of 7D), then MUNG would update `parent.mql`, but not update `child.mql`
+If the MAX_AGE's were reversed (parent has a MAX_AGE of 1H and child of 7D), then xdb-query would update `parent.mql`, but not update `child.mql`
 
 
 ### Forcing updates of cached data
 Queries may also be updated ignoring any `@update_policy` directive using the following command:
 
-    mung update parent.mql
+    xdb-query update parent.mql
 
 
 
